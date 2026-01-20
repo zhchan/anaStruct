@@ -1,9 +1,12 @@
-from typing import Literal, Optional
+from typing import TYPE_CHECKING, Literal, Optional
 
 import numpy as np
 
 from anastruct.preprocess.truss_class import FlatTruss, RoofTruss
 from anastruct.types import SectionProps, Vertex
+
+if TYPE_CHECKING:
+    from anastruct.preprocess.truss_class import Truss
 
 
 class HoweFlatTruss(FlatTruss):
@@ -1180,6 +1183,73 @@ class AtticRoofTruss(RoofTruss):
             self.web_verticals_node_pairs.append((2, 9))
 
 
+def create_truss(truss_type: str, **kwargs) -> "Truss":
+    """Factory function to create truss instances by type name.
+
+    Provides a convenient way to create trusses without importing specific classes.
+    Type names are case-insensitive and can use underscores or hyphens as separators.
+
+    Args:
+        truss_type (str): Name of the truss type. Supported types:
+            Flat trusses: "howe", "pratt", "warren"
+            Roof trusses: "king_post", "queen_post", "fink", "howe_roof", "pratt_roof",
+                "fan", "modified_queen_post", "double_fink", "double_howe",
+                "modified_fan", "attic"
+        **kwargs: Arguments to pass to the truss constructor
+
+    Returns:
+        Truss: An instance of the requested truss type
+
+    Raises:
+        ValueError: If truss_type is not recognized
+
+    Examples:
+        >>> truss = create_truss("howe", width=20, height=2.5, unit_width=2.0)
+        >>> truss = create_truss("king-post", width=10, roof_pitch_deg=30)
+    """
+    # Normalize the truss type name
+    normalized = truss_type.lower().replace("-", "_").replace(" ", "_")
+
+    # Map of normalized names to classes
+    truss_map = {
+        # Flat trusses
+        "howe": HoweFlatTruss,
+        "howe_flat": HoweFlatTruss,
+        "pratt": PrattFlatTruss,
+        "pratt_flat": PrattFlatTruss,
+        "warren": WarrenFlatTruss,
+        "warren_flat": WarrenFlatTruss,
+        # Roof trusses
+        "king_post": KingPostRoofTruss,
+        "kingpost": KingPostRoofTruss,
+        "queen_post": QueenPostRoofTruss,
+        "queenpost": QueenPostRoofTruss,
+        "fink": FinkRoofTruss,
+        "howe_roof": HoweRoofTruss,
+        "pratt_roof": PrattRoofTruss,
+        "fan": FanRoofTruss,
+        "modified_queen_post": ModifiedQueenPostRoofTruss,
+        "modified_queenpost": ModifiedQueenPostRoofTruss,
+        "double_fink": DoubleFinkRoofTruss,
+        "doublefink": DoubleFinkRoofTruss,
+        "double_howe": DoubleHoweRoofTruss,
+        "doublehowe": DoubleHoweRoofTruss,
+        "modified_fan": ModifiedFanRoofTruss,
+        "modifiedfan": ModifiedFanRoofTruss,
+        "attic": AtticRoofTruss,
+        "attic_roof": AtticRoofTruss,
+    }
+
+    if normalized not in truss_map:
+        available = sorted(set(truss_map.keys()))
+        raise ValueError(
+            f"Unknown truss type '{truss_type}'. Available types: {', '.join(available)}"
+        )
+
+    truss_class = truss_map[normalized]
+    return truss_class(**kwargs)
+
+
 __all__ = [
     "HoweFlatTruss",
     "PrattFlatTruss",
@@ -1195,4 +1265,5 @@ __all__ = [
     "DoubleHoweRoofTruss",
     "ModifiedFanRoofTruss",
     "AtticRoofTruss",
+    "create_truss",
 ]
