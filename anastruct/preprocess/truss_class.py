@@ -15,6 +15,30 @@ DEFAULT_TRUSS_SECTION: SectionProps = {
 
 
 class Truss(ABC):
+    """Abstract base class for 2D truss structures.
+
+    Provides a framework for creating parametric truss geometries with automated
+    node generation, connectivity, and support definitions. Subclasses implement
+    specific truss types (Howe, Pratt, Warren, etc.).
+
+    The truss generation follows a three-phase process:
+    1. define_nodes() - Generate node coordinates
+    2. define_connectivity() - Define which nodes connect to form elements
+    3. define_supports() - Define support locations and types
+
+    Attributes:
+        width (float): Total span of the truss (length units)
+        height (float): Height of the truss (length units)
+        top_chord_section (SectionProps): Section properties for top chord elements
+        bottom_chord_section (SectionProps): Section properties for bottom chord elements
+        web_section (SectionProps): Section properties for diagonal web elements
+        web_verticals_section (SectionProps): Section properties for vertical web elements
+        top_chord_continuous (bool): If True, top chord is continuous; if False, pinned at joints
+        bottom_chord_continuous (bool): If True, bottom chord is continuous; if False, pinned at joints
+        supports_type (Literal["simple", "pinned", "fixed"]): Type of supports to apply
+        system (SystemElements): The FEM system containing all nodes, elements, and supports
+    """
+
     # Common geometry
     width: float
     height: float
@@ -25,26 +49,26 @@ class Truss(ABC):
     web_section: SectionProps
     web_verticals_section: SectionProps
 
-    # Configuraion
-    top_chord_continous: bool
+    # Configuration
+    top_chord_continuous: bool
     bottom_chord_continuous: bool
     supports_type: Literal["simple", "pinned", "fixed"]
 
-    # Defined by subclass
-    nodes: list[Vertex] = []
-    top_chord_node_ids: Union[list[int], dict[str, list[int]]] = []
-    bottom_chord_node_ids: Union[list[int], dict[str, list[int]]] = []
-    web_node_pairs: list[tuple[int, int]] = []
-    web_verticals_node_pairs: list[tuple[int, int]] = []
-    support_definitions: dict[int, Literal["fixed", "pinned", "roller"]] = {}
-    top_chord_length: float = 0.0
-    bottom_chord_length: float = 0.0
+    # Defined by subclass (initialized in define_* methods)
+    nodes: list[Vertex]
+    top_chord_node_ids: Union[list[int], dict[str, list[int]]]
+    bottom_chord_node_ids: Union[list[int], dict[str, list[int]]]
+    web_node_pairs: list[tuple[int, int]]
+    web_verticals_node_pairs: list[tuple[int, int]]
+    support_definitions: dict[int, Literal["fixed", "pinned", "roller"]]
+    top_chord_length: float
+    bottom_chord_length: float
 
-    # Defined by main class
-    top_chord_element_ids: Union[list[int], dict[str, list[int]]] = []
-    bottom_chord_element_ids: Union[list[int], dict[str, list[int]]] = []
-    web_element_ids: list[int] = []
-    web_verticals_element_ids: list[int] = []
+    # Defined by main class (initialized in add_elements)
+    top_chord_element_ids: Union[list[int], dict[str, list[int]]]
+    bottom_chord_element_ids: Union[list[int], dict[str, list[int]]]
+    web_element_ids: list[int]
+    web_verticals_element_ids: list[int]
 
     # System
     system: SystemElements
@@ -61,6 +85,35 @@ class Truss(ABC):
         bottom_chord_continuous: bool = True,
         supports_type: Literal["simple", "pinned", "fixed"] = "simple",
     ):
+        """Initialize a truss structure.
+
+        Args:
+            width (float): Total span of the truss. Must be positive.
+            height (float): Height of the truss. Must be positive.
+            top_chord_section (Optional[SectionProps]): Section properties for top chord.
+                Defaults to DEFAULT_TRUSS_SECTION if not provided.
+            bottom_chord_section (Optional[SectionProps]): Section properties for bottom chord.
+                Defaults to DEFAULT_TRUSS_SECTION if not provided.
+            web_section (Optional[SectionProps]): Section properties for diagonal web members.
+                Defaults to DEFAULT_TRUSS_SECTION if not provided.
+            web_verticals_section (Optional[SectionProps]): Section properties for vertical web members.
+                Defaults to web_section if not provided.
+            top_chord_continuous (bool): If True, top chord is continuous at joints (moment connection).
+                If False, top chord is pinned at joints. Defaults to True.
+            bottom_chord_continuous (bool): If True, bottom chord is continuous at joints.
+                If False, bottom chord is pinned at joints. Defaults to True.
+            supports_type (Literal["simple", "pinned", "fixed"]): Type of supports.
+                "simple" creates pinned+roller, "pinned" creates pinned+pinned, "fixed" creates fixed+fixed.
+                Defaults to "simple".
+
+        Raises:
+            ValueError: If width or height is not positive.
+        """
+        if width <= 0:
+            raise ValueError(f"width must be positive, got {width}")
+        if height <= 0:
+            raise ValueError(f"height must be positive, got {height}")
+
         self.width = width
         self.height = height
         self.top_chord_section = top_chord_section or DEFAULT_TRUSS_SECTION
@@ -70,6 +123,14 @@ class Truss(ABC):
         self.top_chord_continuous = top_chord_continuous
         self.bottom_chord_continuous = bottom_chord_continuous
         self.supports_type = supports_type
+
+        # Initialize mutable attributes (prevents sharing between instances)
+        self.nodes = []
+        self.web_node_pairs = []
+        self.web_verticals_node_pairs = []
+        self.support_definitions = {}
+        self.top_chord_length = 0.0
+        self.bottom_chord_length = 0.0
 
         self.define_nodes()
         self.define_connectivity()
@@ -83,30 +144,67 @@ class Truss(ABC):
     @property
     @abstractmethod
     def type(self) -> str:
+        """Return the human-readable name of the truss type."""
         pass
 
     @abstractmethod
     def define_nodes(self) -> None:
+        """Generate node coordinates and populate self.nodes list.
+
+        Must be implemented by subclasses. Should create Vertex objects
+        representing all node locations in the truss.
+        """
         pass
 
     @abstractmethod
     def define_connectivity(self) -> None:
+        """Define element connectivity by populating node ID lists.
+
+        Must be implemented by subclasses. Should populate:
+        - self.top_chord_node_ids
+        - self.bottom_chord_node_ids
+        - self.web_node_pairs
+        - self.web_verticals_node_pairs
+        """
         pass
 
     @abstractmethod
     def define_supports(self) -> None:
+        """Define support locations and types by populating self.support_definitions.
+
+        Must be implemented by subclasses.
+        """
         pass
 
     def add_nodes(self) -> None:
+        """Add all nodes from self.nodes to the SystemElements."""
         for i, vertex in enumerate(self.nodes):
             add_node(self.system, point=vertex, node_id=i)
 
     def add_elements(self) -> None:
+        """Create elements from connectivity definitions and add to SystemElements.
+
+        Populates element ID lists:
+        - self.top_chord_element_ids
+        - self.bottom_chord_element_ids
+        - self.web_element_ids
+        - self.web_verticals_element_ids
+        """
         def add_segment_elements(
             node_pairs: Iterable[tuple[int, int]],
             section: SectionProps,
             continuous: bool,
         ) -> list[int]:
+            """Helper to add a sequence of connected elements.
+
+            Args:
+                node_pairs (Iterable[tuple[int, int]]): Pairs of node IDs to connect
+                section (SectionProps): Section properties for the elements
+                continuous (bool): If True, create moment connections; if False, pin connections
+
+            Returns:
+                list[int]: Element IDs of created elements
+            """
             element_ids = []
             for i, j in node_pairs:
                 element_ids.append(
@@ -171,6 +269,7 @@ class Truss(ABC):
         )
 
     def add_supports(self) -> None:
+        """Add supports from self.support_definitions to the SystemElements."""
         for node_id, support_type in self.support_definitions.items():
             if support_type == "fixed":
                 self.system.add_support_fixed(node_id=node_id)
@@ -179,9 +278,39 @@ class Truss(ABC):
             elif support_type == "roller":
                 self.system.add_support_roll(node_id=node_id)
 
+    def _resolve_support_type(self, is_primary: bool = True) -> Literal["fixed", "pinned", "roller"]:
+        """Helper to resolve support type from "simple" to specific type.
+
+        Args:
+            is_primary (bool): If True, this is the primary (left) support.
+                If False, this is the secondary (right) support.
+
+        Returns:
+            Literal["fixed", "pinned", "roller"]: The resolved support type.
+                For "simple", returns "pinned" if primary, "roller" if secondary.
+        """
+        if self.supports_type != "simple":
+            return self.supports_type
+        return "pinned" if is_primary else "roller"
+
     def get_element_ids_of_chord(
         self, chord: Literal["top", "bottom"], chord_segment: Optional[str] = None
     ) -> list[int]:
+        """Get element IDs for a chord (top or bottom).
+
+        Args:
+            chord (Literal["top", "bottom"]): Which chord to query
+            chord_segment (Optional[str]): If the chord is segmented (dict of segments),
+                specify which segment to get. If None and chord is segmented, returns
+                all element IDs from all segments concatenated.
+
+        Returns:
+            list[int]: Element IDs of the requested chord (segment)
+
+        Raises:
+            ValueError: If chord is not "top" or "bottom"
+            KeyError: If chord_segment is specified but doesn't exist in the chord
+        """
         if chord == "top":
             if isinstance(self.top_chord_element_ids, dict):
                 if chord_segment is None:
@@ -189,6 +318,12 @@ class Truss(ABC):
                     for ids in self.top_chord_element_ids.values():
                         all_ids.extend(ids)
                     return all_ids
+                if chord_segment not in self.top_chord_element_ids:
+                    available = list(self.top_chord_element_ids.keys())
+                    raise KeyError(
+                        f"chord_segment '{chord_segment}' not found. "
+                        f"Available segments: {available}"
+                    )
                 return self.top_chord_element_ids[chord_segment]
             return self.top_chord_element_ids
 
@@ -199,6 +334,12 @@ class Truss(ABC):
                     for ids in self.bottom_chord_element_ids.values():
                         all_ids.extend(ids)
                     return all_ids
+                if chord_segment not in self.bottom_chord_element_ids:
+                    available = list(self.bottom_chord_element_ids.keys())
+                    raise KeyError(
+                        f"chord_segment '{chord_segment}' not found. "
+                        f"Available segments: {available}"
+                    )
                 return self.bottom_chord_element_ids[chord_segment]
             return self.bottom_chord_element_ids
 
@@ -207,11 +348,23 @@ class Truss(ABC):
     def apply_q_load_to_top_chord(
         self,
         q: Union[float, Sequence[float]],
-        direction: Union["LoadDirection", Sequence["LoadDirection"]] = "element",
+        direction: Union[LoadDirection, Sequence[LoadDirection]] = "element",
         rotation: Optional[Union[float, Sequence[float]]] = None,
         q_perp: Optional[Union[float, Sequence[float]]] = None,
         chord_segment: Optional[str] = None,
     ) -> None:
+        """Apply distributed load to all elements in the top chord.
+
+        Args:
+            q (Union[float, Sequence[float]]): Load magnitude (force/length units)
+            direction (Union[LoadDirection, Sequence[LoadDirection]]): Load direction.
+                Options: "element", "x", "y", "parallel", "perpendicular", "angle"
+            rotation (Optional[Union[float, Sequence[float]]]): Rotation angle in degrees
+                (used with direction="angle")
+            q_perp (Optional[Union[float, Sequence[float]]]): Perpendicular load component
+            chord_segment (Optional[str]): If specified, apply load only to this segment
+                (for trusses with segmented chords like roof trusses)
+        """
         element_ids = self.get_element_ids_of_chord(
             chord="top", chord_segment=chord_segment
         )
@@ -227,11 +380,23 @@ class Truss(ABC):
     def apply_q_load_to_bottom_chord(
         self,
         q: Union[float, Sequence[float]],
-        direction: Union["LoadDirection", Sequence["LoadDirection"]] = "element",
+        direction: Union[LoadDirection, Sequence[LoadDirection]] = "element",
         rotation: Optional[Union[float, Sequence[float]]] = None,
         q_perp: Optional[Union[float, Sequence[float]]] = None,
         chord_segment: Optional[str] = None,
     ) -> None:
+        """Apply distributed load to all elements in the bottom chord.
+
+        Args:
+            q (Union[float, Sequence[float]]): Load magnitude (force/length units)
+            direction (Union[LoadDirection, Sequence[LoadDirection]]): Load direction.
+                Options: "element", "x", "y", "parallel", "perpendicular", "angle"
+            rotation (Optional[Union[float, Sequence[float]]]): Rotation angle in degrees
+                (used with direction="angle")
+            q_perp (Optional[Union[float, Sequence[float]]]): Perpendicular load component
+            chord_segment (Optional[str]): If specified, apply load only to this segment
+                (for trusses with segmented chords like roof trusses)
+        """
         element_ids = self.get_element_ids_of_chord(
             chord="bottom", chord_segment=chord_segment
         )
@@ -245,10 +410,27 @@ class Truss(ABC):
             )
 
     def show_structure(self) -> None:
+        """Display the truss structure using matplotlib."""
         self.system.show_structure()
 
 
 class FlatTruss(Truss):
+    """Abstract base class for flat (parallel chord) truss structures.
+
+    Flat trusses have parallel top and bottom chords and are divided into
+    repeating panel units. Specific truss patterns (Howe, Pratt, Warren)
+    are implemented by subclasses.
+
+    Attributes:
+        unit_width (float): Width of each panel/bay
+        end_type (EndType): Configuration of truss ends - "flat", "triangle_down", or "triangle_up"
+        supports_loc (SupportLoc): Where supports are placed - "bottom_chord", "top_chord", or "both"
+        min_end_fraction (float): Minimum width of end panels as fraction of unit_width
+        enforce_even_units (bool): If True, ensure even number of panels for symmetry
+        n_units (int): Computed number of panel units
+        end_width (float): Computed width of end panels
+    """
+
     # Data types specific to this truss type
     EndType = Literal["flat", "triangle_down", "triangle_up"]
     SupportLoc = Literal["bottom_chord", "top_chord", "both"]
@@ -258,7 +440,7 @@ class FlatTruss(Truss):
     end_type: EndType
     supports_loc: SupportLoc
 
-    # Addtional configuration
+    # Additional configuration
     min_end_fraction: float
     enforce_even_units: bool
 
@@ -285,17 +467,59 @@ class FlatTruss(Truss):
         web_section: Optional[SectionProps] = None,
         web_verticals_section: Optional[SectionProps] = None,
     ):
+        """Initialize a flat truss.
+
+        Args:
+            width (float): Total span of the truss. Must be positive.
+            height (float): Height of the truss. Must be positive.
+            unit_width (float): Width of each panel. Must be positive and less than
+                width - 2*min_end_fraction*unit_width.
+            end_type (EndType): End panel configuration. "triangle_down" has diagonals
+                pointing down at ends, "triangle_up" has diagonals pointing up,
+                "flat" has vertical end panels.
+            supports_loc (SupportLoc): Location of supports - "bottom_chord" (typical),
+                "top_chord" (hanging truss), or "both" (supported at both chords).
+            min_end_fraction (float): Minimum end panel width as fraction of unit_width.
+                Must be between 0 and 1. Defaults to 0.5.
+            enforce_even_units (bool): If True, ensure even number of units for symmetry.
+                Defaults to True.
+            top_chord_section (Optional[SectionProps]): Section properties for top chord
+            bottom_chord_section (Optional[SectionProps]): Section properties for bottom chord
+            web_section (Optional[SectionProps]): Section properties for diagonal webs
+            web_verticals_section (Optional[SectionProps]): Section properties for vertical webs
+
+        Raises:
+            ValueError: If dimensions are invalid or result in negative/zero units
+        """
+        if unit_width <= 0:
+            raise ValueError(f"unit_width must be positive, got {unit_width}")
+        if not 0 < min_end_fraction <= 1:
+            raise ValueError(f"min_end_fraction must be in (0, 1], got {min_end_fraction}")
 
         self.unit_width = unit_width
         self.end_type = end_type
         self.supports_loc = supports_loc
         self.min_end_fraction = min_end_fraction
         self.enforce_even_units = enforce_even_units
-        self.n_units = np.floor(
-            (width - unit_width * 2 * min_end_fraction) / unit_width
-        )
+
+        # Compute number of units
+        n_units_float = (width - unit_width * 2 * min_end_fraction) / unit_width
+        if n_units_float < 1:
+            raise ValueError(
+                f"Width {width} is too small for unit_width {unit_width} and "
+                f"min_end_fraction {min_end_fraction}. Would result in {n_units_float:.2f} units."
+            )
+
+        self.n_units = int(np.floor(n_units_float))
         if self.enforce_even_units and self.n_units % 2 != 0:
             self.n_units -= 1
+
+        if self.n_units < 2:
+            raise ValueError(
+                f"Truss must have at least 2 units. Computed {self.n_units} units. "
+                f"Reduce unit_width or increase width."
+            )
+
         self.end_width = (width - self.n_units * unit_width) / 2
         super().__init__(
             width,
@@ -315,8 +539,11 @@ class FlatTruss(Truss):
         pass
 
     def define_supports(self) -> None:
-        # This default implementation assumes that top and bottom chords are one single segment / list, and
-        # that supports are at the ends of the truss.
+        """Define support locations for flat trusses.
+
+        Default implementation places supports at the ends of the truss.
+        Assumes single-segment (non-dict) chord node ID lists.
+        """
         assert isinstance(self.bottom_chord_node_ids, list)
         assert isinstance(self.top_chord_node_ids, list)
         bottom_left = 0
@@ -324,22 +551,26 @@ class FlatTruss(Truss):
         top_left = min(self.top_chord_node_ids)
         top_right = max(self.top_chord_node_ids)
         if self.supports_loc in ["bottom_chord", "both"]:
-            self.support_definitions[bottom_left] = (
-                self.supports_type if self.supports_type != "simple" else "pinned"
-            )
-            self.support_definitions[bottom_right] = (
-                self.supports_type if self.supports_type != "simple" else "roller"
-            )
+            self.support_definitions[bottom_left] = self._resolve_support_type(is_primary=True)
+            self.support_definitions[bottom_right] = self._resolve_support_type(is_primary=False)
         if self.supports_loc in ["top_chord", "both"]:
-            self.support_definitions[top_left] = (
-                self.supports_type if self.supports_type != "simple" else "pinned"
-            )
-            self.support_definitions[top_right] = (
-                self.supports_type if self.supports_type != "simple" else "roller"
-            )
+            self.support_definitions[top_left] = self._resolve_support_type(is_primary=True)
+            self.support_definitions[top_right] = self._resolve_support_type(is_primary=False)
 
 
 class RoofTruss(Truss):
+    """Abstract base class for peaked roof truss structures.
+
+    Roof trusses have sloped top chords meeting at a peak, forming a triangular
+    profile. Height is computed from span and roof pitch. Specific truss patterns
+    (King Post, Queen Post, Fink, etc.) are implemented by subclasses.
+
+    Attributes:
+        overhang_length (float): Length of roof overhang beyond supports
+        roof_pitch_deg (float): Roof pitch angle in degrees
+        roof_pitch (float): Roof pitch angle in radians (computed)
+    """
+
     # Additional geometry for this truss type
     overhang_length: float
     roof_pitch_deg: float
@@ -362,6 +593,27 @@ class RoofTruss(Truss):
         web_section: Optional[SectionProps] = None,
         web_verticals_section: Optional[SectionProps] = None,
     ):
+        """Initialize a roof truss.
+
+        Args:
+            width (float): Total span of the truss (building width). Must be positive.
+            roof_pitch_deg (float): Roof pitch angle in degrees. Must be positive and
+                less than 90 degrees. Common values: 18-45 degrees.
+            overhang_length (float): Length of roof overhang beyond the supports.
+                Must be non-negative. Defaults to 0.0.
+            top_chord_section (Optional[SectionProps]): Section properties for top chord
+            bottom_chord_section (Optional[SectionProps]): Section properties for bottom chord
+            web_section (Optional[SectionProps]): Section properties for diagonal webs
+            web_verticals_section (Optional[SectionProps]): Section properties for vertical webs
+
+        Raises:
+            ValueError: If dimensions or angles are invalid
+        """
+        if roof_pitch_deg <= 0 or roof_pitch_deg >= 90:
+            raise ValueError(f"roof_pitch_deg must be between 0 and 90, got {roof_pitch_deg}")
+        if overhang_length < 0:
+            raise ValueError(f"overhang_length must be non-negative, got {overhang_length}")
+
         self.roof_pitch_deg = roof_pitch_deg
         self.roof_pitch = np.radians(roof_pitch_deg)
         height = (width / 2) * np.tan(self.roof_pitch)
@@ -384,15 +636,14 @@ class RoofTruss(Truss):
         pass
 
     def define_supports(self) -> None:
-        # This default implementation assumes that bottom chords are one single segment / list, and
-        # that supports are at the ends of the truss.
+        """Define support locations for roof trusses.
+
+        Default implementation places supports at the ends of the bottom chord.
+        Assumes single-segment (non-dict) bottom chord node ID list.
+        """
         assert isinstance(self.bottom_chord_node_ids, list)
 
         bottom_left = 0
         bottom_right = max(self.bottom_chord_node_ids)
-        self.support_definitions[bottom_left] = (
-            self.supports_type if self.supports_type != "simple" else "pinned"
-        )
-        self.support_definitions[bottom_right] = (
-            self.supports_type if self.supports_type != "simple" else "roller"
-        )
+        self.support_definitions[bottom_left] = self._resolve_support_type(is_primary=True)
+        self.support_definitions[bottom_right] = self._resolve_support_type(is_primary=False)

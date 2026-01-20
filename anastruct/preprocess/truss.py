@@ -7,6 +7,13 @@ from anastruct.types import SectionProps, Vertex
 
 
 class HoweFlatTruss(FlatTruss):
+    """Howe flat truss with vertical web members and diagonal members in compression.
+
+    The Howe truss features vertical web members and diagonal members sloping toward
+    the center. Under gravity loads, diagonals are typically in compression and
+    verticals in tension, making it efficient for steel trusses.
+    """
+
     @property
     def type(self) -> str:
         return "Howe Flat Truss"
@@ -94,6 +101,13 @@ class HoweFlatTruss(FlatTruss):
 
 
 class PrattFlatTruss(FlatTruss):
+    """Pratt flat truss with vertical web members and diagonal members in tension.
+
+    The Pratt truss features vertical web members and diagonal members sloping away
+    from the center. Under gravity loads, diagonals are typically in tension and
+    verticals in compression, making it efficient for a wide range of applications.
+    """
+
     @property
     def type(self) -> str:
         return "Pratt Flat Truss"
@@ -181,6 +195,16 @@ class PrattFlatTruss(FlatTruss):
 
 
 class WarrenFlatTruss(FlatTruss):
+    """Warren flat truss with diagonal-only web members forming a zigzag pattern.
+
+    The Warren truss has no vertical web members (except optionally at midspan).
+    Diagonal members alternate direction, creating a series of equilateral or
+    isosceles triangles. This configuration is simple and efficient.
+
+    Note: Warren trusses don't support the "flat" end_type - only "triangle_down"
+    or "triangle_up".
+    """
+
     # Data types specific to this truss type
     EndType = Literal["triangle_down", "triangle_up"]
     SupportLoc = Literal["bottom_chord", "top_chord", "both"]
@@ -293,6 +317,12 @@ class WarrenFlatTruss(FlatTruss):
 
 
 class KingPostRoofTruss(RoofTruss):
+    """King Post roof truss - simplest pitched roof truss with single center vertical.
+
+    Features a single vertical member (king post) at the center supporting the peak.
+    Suitable for short spans (up to ~8m). No diagonal web members.
+    """
+
     @property
     def type(self) -> str:
         return "King Post Roof Truss"
@@ -338,22 +368,29 @@ class KingPostRoofTruss(RoofTruss):
 
 
 class QueenPostRoofTruss(RoofTruss):
+    """Queen Post roof truss with two vertical members and diagonal bracing.
+
+    Features two vertical members (queen posts) at quarter points with diagonal
+    members from center to quarter points. Suitable for medium spans (8-15m).
+    More efficient than King Post for longer spans.
+    """
+
     @property
     def type(self) -> str:
         return "Queen Post Roof Truss"
 
     def define_nodes(self) -> None:
-        # Bottom chord nodes
+        # Bottom chord nodes: [0=left, 1=center, 2=right]
         self.nodes.append(Vertex(0.0, 0.0))
         self.nodes.append(Vertex(self.width / 2, 0.0))
         self.nodes.append(Vertex(self.width, 0.0))
 
-        # Top chord nodes
-        # self.nodes.append(Vertex(0.0, 0.0))
+        # Top chord nodes: [3=left quarter, 4=peak, 5=right quarter]
         self.nodes.append(Vertex(self.width / 4, self.height / 2))
         self.nodes.append(Vertex(self.width / 2, self.height))
         self.nodes.append(Vertex(3 * self.width / 4, self.height / 2))
-        # self.nodes.append(Vertex(self.width, 0.0))
+
+        # Optional overhang nodes
         if self.overhang_length > 0:
             self.nodes.append(
                 Vertex(
@@ -381,14 +418,21 @@ class QueenPostRoofTruss(RoofTruss):
             self.top_chord_node_ids["right"].append(7)  # right overhang
 
         # Web diagonals connectivity
-        self.web_node_pairs.append((1, 3))  # left diagonal
-        self.web_node_pairs.append((1, 5))  # right diagonal
+        self.web_node_pairs.append((1, 3))  # left diagonal from center bottom to left quarter top
+        self.web_node_pairs.append((1, 5))  # right diagonal from center bottom to right quarter top
 
-        # Web verticals connectivity
-        self.web_verticals_node_pairs.append((1, 3))  # center vertical
+        # Web verticals connectivity - Fixed: should connect to peak (node 4), not node 3
+        self.web_verticals_node_pairs.append((1, 4))  # center vertical from center bottom to peak
 
 
 class FinkRoofTruss(RoofTruss):
+    """Fink roof truss with W-shaped web configuration.
+
+    Features diagonal members forming a W pattern between peak and supports.
+    Efficient for medium to long spans (10-20m). The symmetrical W pattern
+    distributes loads effectively with minimal material usage.
+    """
+
     @property
     def type(self) -> str:
         return "Fink Roof Truss"
@@ -440,6 +484,13 @@ class FinkRoofTruss(RoofTruss):
 
 
 class HoweRoofTruss(RoofTruss):
+    """Howe roof truss with vertical posts and diagonal compression members.
+
+    Features vertical posts with diagonals sloping toward the peak. Under gravity
+    loads, diagonals are in compression and verticals in tension. Suitable for
+    medium to long spans with good load distribution.
+    """
+
     @property
     def type(self) -> str:
         return "Howe Roof Truss"
@@ -495,6 +546,13 @@ class HoweRoofTruss(RoofTruss):
 
 
 class PrattRoofTruss(RoofTruss):
+    """Pratt roof truss with vertical posts and diagonal tension members.
+
+    Features vertical posts with diagonals sloping away from the peak. Under gravity
+    loads, diagonals are in tension and verticals in compression. Widely used for
+    its efficiency and simple construction.
+    """
+
     @property
     def type(self) -> str:
         return "Pratt Roof Truss"
@@ -550,6 +608,13 @@ class PrattRoofTruss(RoofTruss):
 
 
 class FanRoofTruss(RoofTruss):
+    """Fan roof truss with radiating diagonal members forming a fan pattern.
+
+    Features diagonal members radiating from lower chord panel points up to the
+    top chord, creating a fan-like appearance. Provides excellent load distribution
+    for longer spans (15-25m).
+    """
+
     @property
     def type(self) -> str:
         return "Fan Roof Truss"
@@ -610,6 +675,13 @@ class FanRoofTruss(RoofTruss):
 
 
 class ModifiedQueenPostRoofTruss(RoofTruss):
+    """Modified Queen Post roof truss with enhanced web configuration.
+
+    An enhanced version of the Queen Post truss with additional web members
+    for better load distribution and reduced member forces. Suitable for
+    medium to long spans (12-20m).
+    """
+
     @property
     def type(self) -> str:
         return "Modified Queen Post Roof Truss"
@@ -672,6 +744,13 @@ class ModifiedQueenPostRoofTruss(RoofTruss):
 
 
 class DoubleFinkRoofTruss(RoofTruss):
+    """Double Fink roof truss with two W-shaped web patterns.
+
+    An extension of the Fink truss with additional web members creating two
+    W patterns. Suitable for longer spans (20-30m) where a standard Fink would
+    have excessive member lengths.
+    """
+
     @property
     def type(self) -> str:
         return "Double Fink Roof Truss"
@@ -734,6 +813,13 @@ class DoubleFinkRoofTruss(RoofTruss):
 
 
 class DoubleHoweRoofTruss(RoofTruss):
+    """Double Howe roof truss with enhanced vertical and diagonal web pattern.
+
+    An extension of the Howe truss with additional verticals and diagonals for
+    increased load capacity and reduced member lengths. Suitable for long spans
+    (20-30m) or heavy loading conditions.
+    """
+
     @property
     def type(self) -> str:
         return "Double Howe Roof Truss"
@@ -800,6 +886,13 @@ class DoubleHoweRoofTruss(RoofTruss):
 
 
 class ModifiedFanRoofTruss(RoofTruss):
+    """Modified Fan roof truss with enhanced radiating web pattern.
+
+    An enhanced version of the Fan truss with additional web members for
+    improved structural performance. Suitable for long spans (20-30m) with
+    excellent load distribution characteristics.
+    """
+
     @property
     def type(self) -> str:
         return "Modified Fan Roof Truss"
@@ -866,6 +959,29 @@ class ModifiedFanRoofTruss(RoofTruss):
 
 
 class AtticRoofTruss(RoofTruss):
+    """Attic (or Room-in-Roof) truss with habitable space under the roof.
+
+    Creates a truss with vertical walls and a flat ceiling to provide usable attic
+    space. The geometry includes:
+    - Vertical attic walls at the edges of the attic space
+    - Horizontal ceiling beam
+    - Sloped top chords from walls to peak
+    - Diagonal and vertical web members for support
+
+    The attic space is defined by attic_width (floor width) and attic_height
+    (ceiling height). If attic_height is not specified, it defaults to the height
+    where the vertical walls meet the sloped roof.
+
+    Attributes:
+        attic_width (float): Width of the attic floor (interior dimension)
+        attic_height (float): Height of the attic ceiling
+        wall_x (float): Horizontal position where attic walls are located
+        wall_y (float): Height at top of attic walls where they meet the roof slope
+        ceiling_y (float): Vertical position of the ceiling beam (equals attic_height)
+        ceiling_x (float): Horizontal position where ceiling meets the sloped top chord
+        wall_ceiling_intersect (bool): True if wall top and ceiling intersection coincide
+    """
+
     # Additional properties for this truss type
     attic_width: float
     attic_height: float
@@ -893,6 +1009,80 @@ class AtticRoofTruss(RoofTruss):
         web_section: Optional[SectionProps] = None,
         web_verticals_section: Optional[SectionProps] = None,
     ):
+        """Initialize an attic roof truss.
+
+        Args:
+            width (float): Total span of the truss
+            roof_pitch_deg (float): Roof pitch angle in degrees
+            attic_width (float): Interior width of the attic space. Must be less than width.
+            attic_height (Optional[float]): Height of the attic ceiling. If None, defaults
+                to the height where vertical walls meet the roof slope. Must be at least
+                as high as the wall intersection point.
+            overhang_length (float): Length of roof overhang. Defaults to 0.0.
+            top_chord_section (Optional[SectionProps]): Section properties for top chord
+            bottom_chord_section (Optional[SectionProps]): Section properties for bottom chord
+            web_section (Optional[SectionProps]): Section properties for diagonal webs
+            web_verticals_section (Optional[SectionProps]): Section properties for vertical webs
+
+        Raises:
+            ValueError: If attic dimensions are invalid or create impossible geometry
+        """
+        # NOTE: Must compute attic geometry BEFORE calling super().__init__() because
+        # define_nodes() needs these values, and it's called within super().__init__()
+
+        if attic_width <= 0:
+            raise ValueError(f"attic_width must be positive, got {attic_width}")
+        if attic_width >= width:
+            raise ValueError(
+                f"attic_width ({attic_width}) must be less than truss width ({width})"
+            )
+
+        self.attic_width = attic_width
+
+        # Compute roof pitch first (needed for geometry calculations)
+        roof_pitch = np.radians(roof_pitch_deg)
+
+        # Calculate horizontal position of attic walls (from centerline)
+        wall_x = width / 2 - attic_width / 2
+
+        # Calculate height where vertical wall meets the sloped roof
+        # Using: wall_y = wall_x * tan(roof_pitch)
+        wall_y = wall_x * np.tan(roof_pitch)
+
+        # Set ceiling height
+        if attic_height is None:
+            # Default: ceiling at the wall-roof intersection
+            ceiling_y = wall_y
+        else:
+            ceiling_y = attic_height
+
+        # Calculate peak height for this width and pitch
+        peak_height = (width / 2) * np.tan(roof_pitch)
+
+        # Calculate horizontal position where ceiling meets the sloped top chord
+        # From peak: horizontal_distance = (peak_height - ceiling_height) / tan(roof_pitch)
+        # From centerline: ceiling_x = centerline - horizontal_distance
+        ceiling_x = width / 2 - (peak_height - ceiling_y) / np.tan(roof_pitch)
+
+        # Validate geometry: ceiling must be at or above the wall intersection
+        if ceiling_y < wall_y or ceiling_x < wall_x:
+            raise ValueError(
+                f"Attic height ({ceiling_y:.2f}) is too low. "
+                f"Minimum attic height for this configuration is {wall_y:.2f}. "
+                f"Please increase attic_height or decrease attic_width."
+            )
+
+        # Store computed geometry
+        self.attic_height = ceiling_y  # Use the computed ceiling_y which is always a float
+        self.wall_x = wall_x
+        self.wall_y = wall_y
+        self.ceiling_y = ceiling_y
+        self.ceiling_x = ceiling_x
+
+        # Check if wall top and ceiling intersection are at the same point
+        self.wall_ceiling_intersect = (self.ceiling_y == self.wall_y)
+
+        # Now call super().__init__() which will call define_nodes/connectivity/supports
         super().__init__(
             width=width,
             roof_pitch_deg=roof_pitch_deg,
@@ -902,23 +1092,6 @@ class AtticRoofTruss(RoofTruss):
             web_section=web_section,
             web_verticals_section=web_verticals_section,
         )
-        self.attic_width = attic_width
-        self.wall_x = self.width / 2 - self.attic_width / 2
-        self.wall_y = self.wall_x * np.tan(self.roof_pitch)
-        if attic_height is None:
-            self.attic_height = self.wall_y
-        else:
-            self.attic_height = attic_height
-        self.ceiling_y = self.attic_height
-        self.ceiling_x = self.width / 2 - (self.height - self.ceiling_y) / np.tan(
-            self.roof_pitch
-        )
-        if self.ceiling_y == self.wall_y:
-            self.wall_ceiling_intersect = True
-        if self.ceiling_y < self.wall_y or self.ceiling_x < self.wall_y:
-            raise ValueError(
-                "Attic height may not be less than the attic wall height. Please increase your attic width and/or attic height."
-            )
 
     def define_nodes(self) -> None:
         # Bottom chord nodes
