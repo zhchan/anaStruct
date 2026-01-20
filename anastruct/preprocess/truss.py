@@ -1068,7 +1068,9 @@ class AtticRoofTruss(RoofTruss):
         ceiling_x = width / 2 - (peak_height - ceiling_y) / np.tan(roof_pitch)
 
         # Validate geometry: ceiling must be at or above the wall intersection
-        if ceiling_y < wall_y or ceiling_x < wall_x:
+        # Use tolerance for floating point comparison
+        tolerance = 1e-6
+        if ceiling_y < wall_y - tolerance or ceiling_x < wall_x - tolerance:
             raise ValueError(
                 f"Attic height ({ceiling_y:.2f}) is too low. "
                 f"Minimum attic height for this configuration is {wall_y:.2f}. "
