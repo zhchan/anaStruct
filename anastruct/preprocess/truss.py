@@ -1,12 +1,9 @@
-from typing import TYPE_CHECKING, Literal, Optional
+from typing import TYPE_CHECKING, Any, Literal, Optional
 
 import numpy as np
 
-from anastruct.preprocess.truss_class import FlatTruss, RoofTruss
+from anastruct.preprocess.truss_class import FlatTruss, RoofTruss, Truss
 from anastruct.types import SectionProps, Vertex
-
-if TYPE_CHECKING:
-    from anastruct.preprocess.truss_class import Truss
 
 
 class HoweFlatTruss(FlatTruss):
@@ -421,11 +418,17 @@ class QueenPostRoofTruss(RoofTruss):
             self.top_chord_node_ids["right"].append(7)  # right overhang
 
         # Web diagonals connectivity
-        self.web_node_pairs.append((1, 3))  # left diagonal from center bottom to left quarter top
-        self.web_node_pairs.append((1, 5))  # right diagonal from center bottom to right quarter top
+        self.web_node_pairs.append(
+            (1, 3)
+        )  # left diagonal from center bottom to left quarter top
+        self.web_node_pairs.append(
+            (1, 5)
+        )  # right diagonal from center bottom to right quarter top
 
         # Web verticals connectivity - Fixed: should connect to peak (node 4), not node 3
-        self.web_verticals_node_pairs.append((1, 4))  # center vertical from center bottom to peak
+        self.web_verticals_node_pairs.append(
+            (1, 4)
+        )  # center vertical from center bottom to peak
 
 
 class FinkRoofTruss(RoofTruss):
@@ -1078,14 +1081,16 @@ class AtticRoofTruss(RoofTruss):
             )
 
         # Store computed geometry
-        self.attic_height = ceiling_y  # Use the computed ceiling_y which is always a float
+        self.attic_height = (
+            ceiling_y  # Use the computed ceiling_y which is always a float
+        )
         self.wall_x = wall_x
         self.wall_y = wall_y
         self.ceiling_y = ceiling_y
         self.ceiling_x = ceiling_x
 
         # Check if wall top and ceiling intersection are at the same point
-        self.wall_ceiling_intersect = (self.ceiling_y == self.wall_y)
+        self.wall_ceiling_intersect = self.ceiling_y == self.wall_y
 
         # Now call super().__init__() which will call define_nodes/connectivity/supports
         super().__init__(
@@ -1185,7 +1190,7 @@ class AtticRoofTruss(RoofTruss):
             self.web_verticals_node_pairs.append((2, 9))
 
 
-def create_truss(truss_type: str, **kwargs) -> "Truss":
+def create_truss(truss_type: str, **kwargs: Any) -> "Truss":
     """Factory function to create truss instances by type name.
 
     Provides a convenient way to create trusses without importing specific classes.
@@ -1249,6 +1254,7 @@ def create_truss(truss_type: str, **kwargs) -> "Truss":
         )
 
     truss_class = truss_map[normalized]
+    assert issubclass(truss_class, Truss)
     return truss_class(**kwargs)
 
 
