@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Iterable, Literal, Optional, Sequence, Union
+from typing import Iterable, Literal, Optional, Sequence, Union, overload
 
 import numpy as np
 
@@ -293,6 +293,16 @@ class Truss(ABC):
             return self.supports_type
         return "pinned" if is_primary else "roller"
 
+    @overload
+    def get_element_ids_of_chord(
+        self, chord: Literal["top", "bottom"], chord_segment: None = None
+    ) -> list[int]: ...
+
+    @overload
+    def get_element_ids_of_chord(
+        self, chord: Literal["top", "bottom"], chord_segment: str
+    ) -> list[int]: ...
+
     def get_element_ids_of_chord(
         self, chord: Literal["top", "bottom"], chord_segment: Optional[str] = None
     ) -> list[int]:
@@ -408,6 +418,116 @@ class Truss(ABC):
                 rotation=rotation,
                 q_perp=q_perp,
             )
+
+    def validate(self) -> bool:
+        """Validate truss geometry and connectivity.
+
+        Checks for common truss definition issues:
+        - All node IDs in connectivity lists reference valid nodes
+        - No duplicate nodes at the same location
+        - All elements have non-zero length
+
+        Returns:
+            bool: True if validation passes
+
+        Raises:
+            ValueError: If validation fails with description of the issue
+        """
+        # Check that all node IDs in connectivity are valid
+        max_node_id = len(self.nodes) - 1
+
+        # Helper to validate node ID list
+        def validate_node_ids(node_ids: Union[list[int], dict[str, list[int]]], name: str) -> None:
+            if isinstance(node_ids, dict):
+                for segment_name, ids in node_ids.items():
+                    for node_id in ids:
+                        if node_id < 0 or node_id > max_node_id:
+                            raise ValueError(
+                                f"{name} segment '{segment_name}' references invalid node ID {node_id}. "
+                                f"Valid range: 0-{max_node_id}"
+                            )
+            else:
+                for node_id in node_ids:
+                    if node_id < 0 or node_id > max_node_id:
+                        raise ValueError(
+                            f"{name} references invalid node ID {node_id}. "
+                            f"Valid range: 0-{max_node_id}"
+                        )
+
+        validate_node_ids(self.top_chord_node_ids, "top_chord_node_ids")
+        validate_node_ids(self.bottom_chord_node_ids, "bottom_chord_node_ids")
+
+        for i, (node_a, node_b) in enumerate(self.web_node_pairs):
+            if node_a < 0 or node_a > max_node_id:
+                raise ValueError(
+                    f"web_node_pairs[{i}] references invalid node ID {node_a}. "
+                    f"Valid range: 0-{max_node_id}"
+                )
+            if node_b < 0 or node_b > max_node_id:
+                raise ValueError(
+                    f"web_node_pairs[{i}] references invalid node ID {node_b}. "
+                    f"Valid range: 0-{max_node_id}"
+                )
+
+        for i, (node_a, node_b) in enumerate(self.web_verticals_node_pairs):
+            if node_a < 0 or node_a > max_node_id:
+                raise ValueError(
+                    f"web_verticals_node_pairs[{i}] references invalid node ID {node_a}. "
+                    f"Valid range: 0-{max_node_id}"
+                )
+            if node_b < 0 or node_b > max_node_id:
+                raise ValueError(
+                    f"web_verticals_node_pairs[{i}] references invalid node ID {node_b}. "
+                    f"Valid range: 0-{max_node_id}"
+                )
+
+        # Check for duplicate node locations (within tolerance)
+        tolerance = 1e-6
+        for i in range(len(self.nodes)):
+            for j in range(i + 1, len(self.nodes)):
+                node_i = self.nodes[i]
+                node_j = self.nodes[j]
+                dx = abs(node_i.x - node_j.x)
+                dy = abs(node_i.y - node_j.y)
+                if dx < tolerance and dy < tolerance:
+                    raise ValueError(
+                        f"Duplicate nodes at position ({node_i.x:.6f}, {node_i.y:.6f}): "
+                        f"node {i} and node {j}"
+                    )
+
+        # Check for zero-length elements
+        def check_element_length(node_a_id: int, node_b_id: int, element_type: str) -> None:
+            node_a = self.nodes[node_a_id]
+            node_b = self.nodes[node_b_id]
+            dx = node_b.x - node_a.x
+            dy = node_b.y - node_a.y
+            length = np.sqrt(dx**2 + dy**2)
+            if length < tolerance:
+                raise ValueError(
+                    f"Zero-length element in {element_type}: nodes {node_a_id} and {node_b_id} "
+                    f"at position ({node_a.x:.6f}, {node_a.y:.6f})"
+                )
+
+        # Check chord elements
+        def check_chord_elements(node_ids: Union[list[int], dict[str, list[int]]], chord_name: str) -> None:
+            if isinstance(node_ids, dict):
+                for segment_name, ids in node_ids.items():
+                    for i in range(len(ids) - 1):
+                        check_element_length(ids[i], ids[i + 1], f"{chord_name} segment '{segment_name}'")
+            else:
+                for i in range(len(node_ids) - 1):
+                    check_element_length(node_ids[i], node_ids[i + 1], chord_name)
+
+        check_chord_elements(self.top_chord_node_ids, "top chord")
+        check_chord_elements(self.bottom_chord_node_ids, "bottom chord")
+
+        for i, (node_a, node_b) in enumerate(self.web_node_pairs):
+            check_element_length(node_a, node_b, f"web diagonal {i}")
+
+        for i, (node_a, node_b) in enumerate(self.web_verticals_node_pairs):
+            check_element_length(node_a, node_b, f"web vertical {i}")
+
+        return True
 
     def show_structure(self) -> None:
         """Display the truss structure using matplotlib."""
