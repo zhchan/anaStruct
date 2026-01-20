@@ -5,7 +5,8 @@ import numpy as np
 
 from anastruct import SystemElements
 from anastruct.fem.system_components.util import add_node
-from anastruct.types import LoadDirection, SectionProps, Vertex
+from anastruct.types import LoadDirection, SectionProps
+from anastruct.vertex import Vertex
 
 DEFAULT_TRUSS_SECTION: SectionProps = {
     "EI": 1e6,
@@ -145,7 +146,6 @@ class Truss(ABC):
     @abstractmethod
     def type(self) -> str:
         """Return the human-readable name of the truss type."""
-        pass
 
     @abstractmethod
     def define_nodes(self) -> None:
@@ -154,7 +154,6 @@ class Truss(ABC):
         Must be implemented by subclasses. Should create Vertex objects
         representing all node locations in the truss.
         """
-        pass
 
     @abstractmethod
     def define_connectivity(self) -> None:
@@ -166,7 +165,6 @@ class Truss(ABC):
         - self.web_node_pairs
         - self.web_verticals_node_pairs
         """
-        pass
 
     @abstractmethod
     def define_supports(self) -> None:
@@ -174,7 +172,6 @@ class Truss(ABC):
 
         Must be implemented by subclasses.
         """
-        pass
 
     def add_nodes(self) -> None:
         """Add all nodes from self.nodes to the SystemElements."""
@@ -190,6 +187,7 @@ class Truss(ABC):
         - self.web_element_ids
         - self.web_verticals_element_ids
         """
+
         def add_segment_elements(
             node_pairs: Iterable[tuple[int, int]],
             section: SectionProps,
@@ -278,7 +276,9 @@ class Truss(ABC):
             elif support_type == "roller":
                 self.system.add_support_roll(node_id=node_id)
 
-    def _resolve_support_type(self, is_primary: bool = True) -> Literal["fixed", "pinned", "roller"]:
+    def _resolve_support_type(
+        self, is_primary: bool = True
+    ) -> Literal["fixed", "pinned", "roller"]:
         """Helper to resolve support type from "simple" to specific type.
 
         Args:
@@ -437,7 +437,9 @@ class Truss(ABC):
         max_node_id = len(self.nodes) - 1
 
         # Helper to validate node ID list
-        def validate_node_ids(node_ids: Union[list[int], dict[str, list[int]]], name: str) -> None:
+        def validate_node_ids(
+            node_ids: Union[list[int], dict[str, list[int]]], name: str
+        ) -> None:
             if isinstance(node_ids, dict):
                 for segment_name, ids in node_ids.items():
                     for node_id in ids:
@@ -483,9 +485,8 @@ class Truss(ABC):
 
         # Check for duplicate node locations (within tolerance)
         tolerance = 1e-6
-        for i in range(len(self.nodes)):
+        for i, node_i in enumerate(self.nodes):
             for j in range(i + 1, len(self.nodes)):
-                node_i = self.nodes[i]
                 node_j = self.nodes[j]
                 dx = abs(node_i.x - node_j.x)
                 dy = abs(node_i.y - node_j.y)
@@ -496,7 +497,9 @@ class Truss(ABC):
                     )
 
         # Check for zero-length elements
-        def check_element_length(node_a_id: int, node_b_id: int, element_type: str) -> None:
+        def check_element_length(
+            node_a_id: int, node_b_id: int, element_type: str
+        ) -> None:
             node_a = self.nodes[node_a_id]
             node_b = self.nodes[node_b_id]
             dx = node_b.x - node_a.x
@@ -509,11 +512,15 @@ class Truss(ABC):
                 )
 
         # Check chord elements
-        def check_chord_elements(node_ids: Union[list[int], dict[str, list[int]]], chord_name: str) -> None:
+        def check_chord_elements(
+            node_ids: Union[list[int], dict[str, list[int]]], chord_name: str
+        ) -> None:
             if isinstance(node_ids, dict):
                 for segment_name, ids in node_ids.items():
                     for i in range(len(ids) - 1):
-                        check_element_length(ids[i], ids[i + 1], f"{chord_name} segment '{segment_name}'")
+                        check_element_length(
+                            ids[i], ids[i + 1], f"{chord_name} segment '{segment_name}'"
+                        )
             else:
                 for i in range(len(node_ids) - 1):
                     check_element_length(node_ids[i], node_ids[i + 1], chord_name)
@@ -614,7 +621,9 @@ class FlatTruss(Truss):
         if unit_width <= 0:
             raise ValueError(f"unit_width must be positive, got {unit_width}")
         if not 0 < min_end_fraction <= 1:
-            raise ValueError(f"min_end_fraction must be in (0, 1], got {min_end_fraction}")
+            raise ValueError(
+                f"min_end_fraction must be in (0, 1], got {min_end_fraction}"
+            )
 
         self.unit_width = unit_width
         self.end_type = end_type
@@ -671,11 +680,19 @@ class FlatTruss(Truss):
         top_left = min(self.top_chord_node_ids)
         top_right = max(self.top_chord_node_ids)
         if self.supports_loc in ["bottom_chord", "both"]:
-            self.support_definitions[bottom_left] = self._resolve_support_type(is_primary=True)
-            self.support_definitions[bottom_right] = self._resolve_support_type(is_primary=False)
+            self.support_definitions[bottom_left] = self._resolve_support_type(
+                is_primary=True
+            )
+            self.support_definitions[bottom_right] = self._resolve_support_type(
+                is_primary=False
+            )
         if self.supports_loc in ["top_chord", "both"]:
-            self.support_definitions[top_left] = self._resolve_support_type(is_primary=True)
-            self.support_definitions[top_right] = self._resolve_support_type(is_primary=False)
+            self.support_definitions[top_left] = self._resolve_support_type(
+                is_primary=True
+            )
+            self.support_definitions[top_right] = self._resolve_support_type(
+                is_primary=False
+            )
 
 
 class RoofTruss(Truss):
@@ -730,9 +747,13 @@ class RoofTruss(Truss):
             ValueError: If dimensions or angles are invalid
         """
         if roof_pitch_deg <= 0 or roof_pitch_deg >= 90:
-            raise ValueError(f"roof_pitch_deg must be between 0 and 90, got {roof_pitch_deg}")
+            raise ValueError(
+                f"roof_pitch_deg must be between 0 and 90, got {roof_pitch_deg}"
+            )
         if overhang_length < 0:
-            raise ValueError(f"overhang_length must be non-negative, got {overhang_length}")
+            raise ValueError(
+                f"overhang_length must be non-negative, got {overhang_length}"
+            )
 
         self.roof_pitch_deg = roof_pitch_deg
         self.roof_pitch = np.radians(roof_pitch_deg)
@@ -765,5 +786,9 @@ class RoofTruss(Truss):
 
         bottom_left = 0
         bottom_right = max(self.bottom_chord_node_ids)
-        self.support_definitions[bottom_left] = self._resolve_support_type(is_primary=True)
-        self.support_definitions[bottom_right] = self._resolve_support_type(is_primary=False)
+        self.support_definitions[bottom_left] = self._resolve_support_type(
+            is_primary=True
+        )
+        self.support_definitions[bottom_right] = self._resolve_support_type(
+            is_primary=False
+        )

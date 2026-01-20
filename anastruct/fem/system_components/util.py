@@ -211,7 +211,8 @@ def add_node(
     Args:
         system (SystemElements): System in which the nodes are located
         point (Vertex): Location of the node
-        node_id (Optional[int], optional): node_id to assign to the node. Defaults to None, which means to use the first available node_id automatically.
+        node_id (Optional[int], optional): node_id to assign to the node. Defaults to None,
+            which means to use the first available node_id automatically.
 
     Raises:
         FEMException: Raised when the location is already assigned to a different node id.
@@ -226,7 +227,8 @@ def add_node(
             if existing_node_id != node_id:
                 raise FEMException(
                     "Flawed inputs",
-                    f"Location {point} is already assigned to node id {existing_node_id}, cannot assign to node id {node_id}.",
+                    f"Location {point} is already assigned to node id {existing_node_id}, "
+                    f"cannot assign to node id {node_id}.",
                 )
         return existing_node_id
 

@@ -1,9 +1,10 @@
-from typing import TYPE_CHECKING, Any, Literal, Optional
+from typing import Any, Literal, Optional
 
 import numpy as np
 
 from anastruct.preprocess.truss_class import FlatTruss, RoofTruss, Truss
-from anastruct.types import SectionProps, Vertex
+from anastruct.types import SectionProps
+from anastruct.vertex import Vertex
 
 
 class HoweFlatTruss(FlatTruss):

@@ -2,7 +2,8 @@ from typing import TYPE_CHECKING, Dict, Literal, Sequence, TypedDict, Union
 
 import numpy as np
 
-from anastruct.vertex import Vertex
+if TYPE_CHECKING:
+    from anastruct.vertex import Vertex
 
 AxisNumber = Literal[1, 2, 3]
 Dimension = Literal["x", "y", "y_neg", "both"]
