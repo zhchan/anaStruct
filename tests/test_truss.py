@@ -28,7 +28,7 @@ from anastruct.preprocess.truss import (
     WarrenFlatTruss,
     create_truss,
 )
-from anastruct.types import Vertex
+from anastruct.vertex import Vertex
 
 
 def describe_flat_truss_types():
@@ -429,7 +429,11 @@ def describe_factory_function():
         test_cases = [
             ("howe", HoweFlatTruss, {"width": 20, "height": 2.5, "unit_width": 2.0}),
             ("pratt", PrattFlatTruss, {"width": 20, "height": 2.5, "unit_width": 2.0}),
-            ("warren", WarrenFlatTruss, {"width": 20, "height": 2.5, "unit_width": 2.0}),
+            (
+                "warren",
+                WarrenFlatTruss,
+                {"width": 20, "height": 2.5, "unit_width": 2.0},
+            ),
             ("king_post", KingPostRoofTruss, {"width": 10, "roof_pitch_deg": 30}),
             ("queen_post", QueenPostRoofTruss, {"width": 12, "roof_pitch_deg": 35}),
             ("fink", FinkRoofTruss, {"width": 15, "roof_pitch_deg": 40}),
